@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Video Audio Panner",
+  "version": "1.0",
+  "description": "VIDEOタグの音声を左・右・中央にグローバルな順番で振り分ける（ツールバーのボタン押下時のみ起動）",
+  "permissions": [
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "Video Audio Panner"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
