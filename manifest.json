@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Video Audio Panner",
-  "version": "1.0",
-  "description": "VIDEOタグの音声を左・右・中央にグローバルな順番で振り分ける（ツールバーのボタン押下時のみ起動）",
+  "version": "1.1",
+  "description": "動画の音声を左右に振り分ける。Holodexのmultiviewでは動画の増減・表示位置に合わせて自動調整。",
   "permissions": [
     "scripting",
     "activeTab"
@@ -15,5 +15,12 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://holodex.net/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }
