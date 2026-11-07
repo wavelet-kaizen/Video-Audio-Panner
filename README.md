@@ -70,6 +70,36 @@ Edge Canaryでは、以下の `chrome://extensions/` を `edge://extensions/` �
 2. `.crx` ファイルを画面にドラッグ&ドロップ
 3. 「拡張機能を追加」をクリック
 
+### CRXの作成・更新
+
+**リポジトリ直下の `pack-crx.cmd` をダブルクリックしてください。** Node.jsや追加パッケージは不要です。実行結果と保存先を表示したまま待機するので、確認後にキーを押して閉じられます。
+
+この処理では、既存の `env/Video Audio Panner.pem` を使い、Edge Canary、通常版Edgeの順でブラウザーを自動検出します。最新の3ファイルだけを一時フォルダーにコピーし、パック・内容の検証まで自動で行います。秘密キーやテスト用データはCRXに含めません。
+
+出力先は `crx/Video Audio Panner-<manifest.jsonのversion>.crx` です。同じバージョンのCRXは、作成と検証が成功した場合に更新します。失敗時は既存のCRXを維持し、エラーと作業ログの場所を表示します。キーが見つからない場合は、新しいキーを生成せずに停止します。
+
+ターミナルから実行する場合：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension.ps1
+```
+
+秘密キーやブラウザーの場所を指定する場合は、`-KeyPath` / `-BrowserPath` を追加できます。ブラウザーは環境変数 `EDGE_PATH` でも指定できます。
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension.ps1 -KeyPath "D:\keys\Video Audio Panner.pem" -BrowserPath "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+```
+
+ブラウザーの画面から手動でパックする場合は、以下の手順を使います。リポジトリ全体をパックすると、`env/` 内の秘密キーやブラウザーのテストデータも対象になります。`.gitignore` はパック対象の除外設定にはなりません。
+
+1. `crx/Video Audio Panner-1.1/` に、最新の `manifest.json`・`background.js`・`content.js` だけをコピーする（再パック時もコピーし直す）
+2. `edge://extensions/` の「拡張機能のパック」で、以下を指定する
+   - **拡張ルート ディレクトリ**：`<リポジトリ>/crx/Video Audio Panner-1.1`
+   - **秘密キー ファイル**：`<リポジトリ>/env/Video Audio Panner.pem`
+3. パックすると `crx/Video Audio Panner-1.1.crx` が作成される
+
+秘密キーはパックするフォルダーの外側に置き、更新時も同じキーを指定してください。キーを専用フォルダー内にコピーする必要はありません。バージョンを上げた場合は、フォルダー名も対応するバージョンに読み替えてください。
+
 ---
 
 ## 使い方
@@ -154,6 +184,8 @@ Edge Canaryでは、以下の `chrome://extensions/` を `edge://extensions/` �
 ├── manifest.json          # 拡張機能の設定
 ├── background.js          # バックグラウンドで動くプログラム
 ├── content.js             # ページに注入されるプログラム
+├── pack-crx.cmd           # ダブルクリックでCRXを作成
+├── scripts/pack-extension.ps1 # CRXの作成・検証処理
 ├── tests/extension.test.cjs # 依存パッケージ不要の回帰テスト
 ├── tests/edge-smoke.cjs    # Edge本体を使う任意のスモークテスト
 └── README.md              # このファイル
