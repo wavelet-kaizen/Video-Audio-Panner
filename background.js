@@ -138,12 +138,16 @@ async function updateTab(tabId, manual) {
   }, { documentId: frame.documentId }).catch(() => {
     // A frame may disappear or navigate between collection and application.
   })));
+  // Keep initialized videos working while a different frame finishes loading.
+  if (automatic && results.some((frame) => !frame.result)) {
+    throw new Error("動画フレームの初期化を待っています");
+  }
 }
 
-function scheduleUpdate(tabId, manual = false) {
+function scheduleUpdate(tabId, manual = false, delay = updateDelay) {
   let state = updates.get(tabId);
   if (!state) {
-    state = { running: false, manual: false, dirty: false, timer: null };
+    state = { running: false, manual: false, dirty: false, timer: null, failures: 0 };
     updates.set(tabId, state);
   }
   state.manual ||= manual;
@@ -157,18 +161,26 @@ function scheduleUpdate(tabId, manual = false) {
     const requestedManually = state.manual;
     state.manual = false;
     state.dirty = false;
+    let retryDelay = 0;
     try {
       await updateTab(tabId, requestedManually);
+      state.failures = 0;
     } catch (error) {
-      console.warn("音声振り分けを更新できませんでした:", error.message);
+      if (!requestedManually && state.failures < 3) {
+        state.failures++;
+        retryDelay = updateDelay * 2 ** state.failures;
+      } else {
+        console.warn("音声振り分けを更新できませんでした:", error.message);
+      }
     } finally {
       state.running = false;
       if (updates.get(tabId) === state) {
         if (state.dirty || state.manual) scheduleUpdate(tabId);
+        else if (retryDelay) scheduleUpdate(tabId, false, retryDelay);
         else updates.delete(tabId);
       }
     }
-  }, updateDelay);
+  }, delay);
 }
 
 chrome.runtime.onMessage.addListener((message, sender) => {
@@ -185,4 +197,12 @@ chrome.tabs.onUpdated.addListener((tabId, change, tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   clearTimeout(updates.get(tabId)?.timer);
   updates.delete(tabId);
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  chrome.tabs.query({ url: "https://holodex.net/*" }).then((tabs) => {
+    for (const tab of tabs) {
+      if (isMultiview(tab.url)) scheduleUpdate(tab.id);
+    }
+  }).catch((error) => console.warn("復元したタブを確認できませんでした:", error.message));
 });

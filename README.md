@@ -92,11 +92,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension
 
 ブラウザーの画面から手動でパックする場合は、以下の手順を使います。リポジトリ全体をパックすると、`env/` 内の秘密キーやブラウザーのテストデータも対象になります。`.gitignore` はパック対象の除外設定にはなりません。
 
-1. `crx/Video Audio Panner-1.2/` に、最新の `manifest.json`・`background.js`・`content.js` だけをコピーする（再パック時もコピーし直す）
+1. `crx/Video Audio Panner-1.3/` に、最新の `manifest.json`・`background.js`・`content.js` だけをコピーする（再パック時もコピーし直す）
 2. `edge://extensions/` の「拡張機能のパック」で、以下を指定する
-   - **拡張ルート ディレクトリ**：`<リポジトリ>/crx/Video Audio Panner-1.2`
+   - **拡張ルート ディレクトリ**：`<リポジトリ>/crx/Video Audio Panner-1.3`
    - **秘密キー ファイル**：`<リポジトリ>/env/Video Audio Panner.pem`
-3. パックすると `crx/Video Audio Panner-1.2.crx` が作成される
+3. パックすると `crx/Video Audio Panner-1.3.crx` が作成される
 
 秘密キーはパックするフォルダーの外側に置き、更新時も同じキーを指定してください。キーを専用フォルダー内にコピーする必要はありません。バージョンを上げた場合は、フォルダー名も対応するバージョンに読み替えてください。
 
@@ -106,12 +106,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension
 
 ### Holodex / Edge CanaryのPWA
 
-1. 拡張機能を読み込んだ後、Holodexのページ（PWAを含む）を再読み込みする
+1. 拡張機能を読み込んだ後、Holodexのページを開き直す（通常のタブでは再読み込みでも可。PWAは終了して開き直す）
 2. `https://holodex.net/multiview` を開いて動画を再生する
 3. 動画を追加・削除したり、配置やウィンドウサイズを変更すると、音声の振り分けが自動で更新される
 
 ツールバーの操作は不要です。自動監視はmultiviewとその配下のURLでのみ有効になり、別のHolodexページへ移動すると監視を停止してパンを中央に戻します。短時間の変更はまとめて処理するため、画面の変更から反映まで少し間があります。
 
+通常のブラウザーでのリロードやPWAの開き直しにも対応します。最初から動画が並んでいる場合も、再生開始・動画情報の読み込み・ページの復帰時に集計し直します。読み込み途中のフレームで初期適用に失敗した場合は最大3回再試行し、その後も再生などのイベントで再適用します。
 
 ブラウザーの[自動再生制限](https://developer.chrome.com/blog/autoplay#web_audio)によって音声処理の開始が保留される場合は、対象の動画内をクリックするか再生操作を行ってください。処理を開始できるまでは元の音声を維持します。
 
@@ -220,7 +221,7 @@ node --check background.js
 node --check content.js
 ```
 
-WindowsにEdgeがある場合は、別のテスト専用プロファイルで実ブラウザーの確認もできます。HTTPSのリクエストはローカルのテストHTMLで置き換えるため、実際のHolodexへは接続しません。通常の自動再生制限のままテスト用音源を再生し、音声処理が動作して表示位置に応じたパン値が適用されることを確認します。
+WindowsにEdgeがある場合は、別のテスト専用プロファイルで実ブラウザーの確認もできます。HTTPSのリクエストはローカルのテストHTMLで置き換えるため、実際のHolodexへは接続しません。通常の自動再生制限のままテスト用音源を再生し、リロード・画面の終了/再表示後も音声処理が動作してパン値が適用されることを確認します。
 
 ```powershell
 node tests/edge-smoke.cjs
@@ -256,4 +257,4 @@ Canaryなど別の実行ファイルを使う場合は、環境変数 `EDGE_PATH
 
 ## バージョン
 
-現在のバージョン: 1.2
+現在のバージョン: 1.3

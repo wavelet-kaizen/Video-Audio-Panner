@@ -24,9 +24,9 @@ The extension follows the standard Chrome Extension Manifest V3 structure:
 
 ### Flow
 
-1. The manifest injects content.js into the Holodex top frame. It requests automatic updates on multiview entry/pageshow; tabs.onUpdated covers SPA route changes. Toolbar clicks request manual updates.
+1. The manifest injects content.js into the Holodex top frame. It starts observers immediately and requests updates on multiview entry/pageshow, focus/visibility restoration and user input. tabs.onUpdated covers SPA route changes; runtime.onStartup also scans restored Holodex tabs. Toolbar clicks request manual updates.
 2. The background injects the idempotent content script into all frames and collects snapshots. It computes pans and sends `applyPanning` assignments.
-3. Only automatic mode enables media child-list, layout-ancestor attribute and resize observers, plus iframe-load/resize/transition events. Debounced `videosChanged` messages wake the background worker, even after idle shutdown. No interval polling.
+3. Only automatic mode enables media child-list, layout-ancestor attribute and resize observers, plus iframe-load/resize/transition events. Media play/playing/loadedmetadata also recollect existing videos, so cached players can initialize without DOM insertion. User input retries suspended audio. Debounced `videosChanged` messages wake the background worker, even after idle shutdown. Initial injection errors or incomplete frame snapshots retry at most three times with increasing delays; there is no interval polling.
 4. Leaving multiview sends `setAutomatic` to disconnect observers and center existing panners. Removing videos disconnects their nodes; reinsertion reuses them.
 
 ## Development Commands
@@ -36,7 +36,7 @@ This is a pure JavaScript Chrome extension with no build system. Files are serve
 - **Development**: No build step required - edit JS files directly
 - **Regression tests**: `node --test tests/extension.test.cjs` (Node 22+, built-in runner, no dependencies)
 - **Syntax**: `node --check background.js` and `node --check content.js`
-- **Browser smoke**: `node tests/edge-smoke.cjs` (Windows Edge, optional `EDGE_PATH` for Canary). Dedicated ignored env/ profile; all fixture HTTPS requests intercepted locally. Plays generated WAV media with normal autoplay policy, checking running audio contexts and panning after playback and layout changes. Does not test live Holodex or listening in a PWA.
+- **Browser smoke**: `node tests/edge-smoke.cjs` (Windows Edge, optional `EDGE_PATH` for Canary). Dedicated ignored env/ profile; all fixture HTTPS requests intercepted locally. Plays generated WAV media with normal autoplay policy, checking running audio contexts and panning after reload and page close/reopen as well as layout changes. Does not test live Holodex or listening in a PWA.
 - **Manual testing**: Load unpacked in Chrome/Edge developer mode; reload both extension and page/PWA after edits. Check 0–5+ videos, iframe loading, removal/reinsertion, layout swaps, resizing, SPA entry/exit and actual stereo audio.
 - **Packaging**: Double-click `pack-crx.cmd`, or run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension.ps1`. The script reuses env/Video Audio Panner.pem, detects Edge Canary/stable (optional -KeyPath/-BrowserPath or EDGE_PATH), stages only the three runtime files, validates CRX3/ZIP contents against staged sources, and publishes `crx/Video Audio Panner-<version>.crx`. Existing output is replaced only after successful validation. Missing keys never cause new keys to be generated. Temporary work uses ignored env/pack-<GUID> directories; failed work is retained for troubleshooting. No Node dependency. Never pack the repository root: .gitignore does not exclude keys or browser profiles from browser packaging.
 

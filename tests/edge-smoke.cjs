@@ -120,8 +120,8 @@ async function main() {
     };
 
     await send("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
-    const { targetId } = await send("Target.createTarget", { url: "about:blank", newWindow: true, width: 800, height: 600 });
-    const pageSession = await until(() => [...sessions].find(([, info]) => info.targetId === targetId && info.ready)?.[0], "page attachment");
+    let { targetId } = await send("Target.createTarget", { url: "about:blank", newWindow: true, width: 800, height: 600 });
+    let pageSession = await until(() => [...sessions].find(([, info]) => info.targetId === targetId && info.ready)?.[0], "page attachment");
     await send("Page.enable", {}, pageSession);
     await send("Page.navigate", { url: "https://holodex.net/multiview" }, pageSession);
 
@@ -187,6 +187,22 @@ async function main() {
     await expected({ "/a": 0, "/b": 0, "/c": 0, "/d": 0 }, "SPA exit resets panning");
     await evaluate("history.pushState({}, '', '/multiview')");
     await expected({ "/a": 0.65, "/b": 0.8, "/c": -0.8, "/d": -0.65 }, "SPA return resumes panning");
+    const previousDocument = await evaluate("performance.timeOrigin");
+    await send("Page.reload", {}, pageSession);
+    await until(async () => (await evaluate("performance.timeOrigin")) !== previousDocument, "fresh document after reload");
+    await until(async () => Object.keys(await audioValues()).length === 4, "restored frames after reload");
+    await playAll();
+    await expected({ "/a": 0.65, "/b": -0.8, "/c": 0.8, "/d": -0.65 }, "reload with existing videos reapplies panning on playback");
+    const closedSession = pageSession;
+    await send("Target.closeTarget", { targetId });
+    await until(() => !sessions.has(closedSession), "closed page session");
+    ({ targetId } = await send("Target.createTarget", { url: "about:blank", newWindow: true, width: 800, height: 600 }));
+    pageSession = await until(() => [...sessions].find(([, info]) => info.targetId === targetId && info.ready)?.[0], "reopened page attachment");
+    await send("Page.enable", {}, pageSession);
+    await send("Page.navigate", { url: "https://holodex.net/multiview" }, pageSession);
+    await until(async () => Object.keys(await audioValues()).length === 4, "pre-existing videos after reopen");
+    await playAll();
+    await expected({ "/a": 0.65, "/b": -0.8, "/c": 0.8, "/d": -0.65 }, "closed and reopened page reapplies panning on playback");
     assert.deepEqual(errors, []);
     const version = await send("Browser.getVersion");
     console.log(`PASS: ${version.product}; no browser exceptions`);

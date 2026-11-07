@@ -19,14 +19,18 @@ function harness(initialUrl = "https://holodex.net/multiview", blocked = false) 
   const warnings = [];
   let nextTimer = 0;
   let nextDocument = 0;
+  let injectionFailures = 0;
+  let missingSnapshots = 0;
+  let injectionAttempts = 0;
   const setTimeout = (fn) => { timers.set(++nextTimer, fn); return nextTimer; };
   const clearTimeout = (id) => timers.delete(id);
   const chrome = {
-    runtime: { onMessage: event() },
+    runtime: { onMessage: event(), onStartup: event() },
     action: { onClicked: event() },
     tabs: {
       onUpdated: event(), onRemoved: event(),
       get: async (id) => ({ id, url: tabs.get(id).url }),
+      query: async () => [...tabs.values()].filter((tab) => tab.url.startsWith("https://holodex.net/")).map(({ id, url }) => ({ id, url })),
       sendMessage: async (id, message, options) => {
         const frames = tabs.get(id).frames.filter((frame) => !options || frame.documentId === options.documentId);
         frames.forEach((frame) => frame.messages.emit(message));
@@ -34,9 +38,20 @@ function harness(initialUrl = "https://holodex.net/multiview", blocked = false) 
     },
     scripting: {
       executeScript: async ({ target, files, func, args }) => {
+        if (files) {
+          injectionAttempts++;
+          if (injectionFailures > 0) {
+            injectionFailures--;
+            throw new Error("Frame is still loading");
+          }
+        }
         // Reverse the results to model the browser's unspecified frame order.
         return [...tabs.get(target.tabId).frames].reverse().map((frame) => {
           frame.sandbox.__args = args;
+          if (!files && frame.path.length && missingSnapshots > 0) {
+            missingSnapshots--;
+            return { frameId: frame.frameId, documentId: frame.documentId };
+          }
           const result = vm.runInContext(files ? contentCode : `(${func.toString()})(...__args)`, frame.sandbox);
           return { frameId: frame.frameId, documentId: frame.documentId, result: result && JSON.parse(JSON.stringify(result)) };
         });
@@ -45,7 +60,7 @@ function harness(initialUrl = "https://holodex.net/multiview", blocked = false) 
   };
   const logger = { error: (...args) => warnings.push(args), warn: (...args) => warnings.push(args) };
   function restartWorker() {
-    for (const e of [chrome.runtime.onMessage, chrome.action.onClicked, chrome.tabs.onUpdated, chrome.tabs.onRemoved]) e.listeners.length = 0;
+    for (const e of [chrome.runtime.onMessage, chrome.runtime.onStartup, chrome.action.onClicked, chrome.tabs.onUpdated, chrome.tabs.onRemoved]) e.listeners.length = 0;
     vm.runInNewContext(backgroundCode, { chrome, URL, setTimeout, clearTimeout, console: logger });
   }
   restartWorker();
@@ -76,6 +91,7 @@ function harness(initialUrl = "https://holodex.net/multiview", blocked = false) 
     const documentElement = element("html");
     const document = {
       documentElement,
+      visibilityState: "visible",
       querySelectorAll: (selector) => selector === "video" ? dom.videos : dom.children,
       addEventListener: (name, listener) => {
         if (!documentEvents.has(name)) documentEvents.set(name, new Set());
@@ -154,7 +170,7 @@ function harness(initialUrl = "https://holodex.net/multiview", blocked = false) 
       },
       resize() { windowEvents.get("resize")?.forEach((listener) => listener()); },
       load(child) { documentEvents.get("load")?.forEach((listener) => listener({ target: child.host })); },
-      play() { documentEvents.get("play")?.forEach((listener) => listener()); },
+      play(name = "play") { documentEvents.get(name)?.forEach((listener) => listener({ target: dom.videos[0] })); },
       pan(index = 0) { return dom.videos[index].source?.panner.pan.value; },
       isWatching() { return observers.some((o) => o.nodes.size > 0); }
     };
@@ -191,6 +207,10 @@ function harness(initialUrl = "https://holodex.net/multiview", blocked = false) 
 
   return {
     firstTab, addTab, addFrame, element, warnings, flush, restartWorker,
+    failInjections(count) { injectionFailures = count; },
+    missSnapshots(count) { missingSnapshots = count; },
+    get injectionAttempts() { return injectionAttempts; },
+    startup() { chrome.runtime.onStartup.emit(); },
     start(tab = firstTab) { vm.runInContext(contentCode, tab.frames[0].sandbox); },
     click(tab = firstTab) { chrome.action.onClicked.emit({ id: tab.id }); },
     navigate(url, tab = firstTab) {
@@ -408,4 +428,80 @@ test("automatic updates wake a fresh service worker and tabs stay independent", 
   await h.flush();
   assert.deepEqual([first.pan(), second.pan()], [0, 0]);
   assert.deepEqual(h.warnings, []);
+});
+
+test("initial Holodex injection watches iframe loads before the first snapshot", () => {
+  const h = harness();
+  const root = h.addFrame();
+  h.start();
+  assert.equal(root.isWatching(), true);
+});
+
+test("playback recollects existing videos that were not visible during initialization", async () => {
+  for (const playbackEvent of ["play", "playing", "loadedmetadata"]) {
+    const h = harness();
+    const root = h.addFrame([], [rect(0, 0, 0, 0), rect(0, 0, 0, 0)]);
+    h.start();
+    await h.flush();
+    assert.equal(root.contexts.length, 0);
+    root.dom.videos.forEach((video, i) => { video.rect = rect(i * 400); });
+    // No insertion, resize callback, or attribute event occurs before playback.
+    root.play(playbackEvent);
+    await h.flush();
+    assert.deepEqual([root.pan(0), root.pan(1)], [-0.8, 0.8]);
+    assert.deepEqual(h.warnings, []);
+  }
+});
+
+test("automatic initialization retries transient iframe injection failures", async () => {
+  const h = harness();
+  const root = h.addFrame([], [rect(0), rect(400)]);
+  h.failInjections(2);
+  h.start();
+  await h.flush();
+  assert.deepEqual([root.pan(0), root.pan(1)], [-0.8, 0.8]);
+});
+
+test("automatic initialization retries when a frame navigates between injection and collection", async () => {
+  const h = harness();
+  h.addFrame();
+  const left = h.addFrame([0], [rect()], rect(0));
+  const right = h.addFrame([1], [rect()], rect(400));
+  h.missSnapshots(1);
+  h.start();
+  await h.flush();
+  assert.deepEqual([left.pan(), right.pan()], [-0.8, 0.8]);
+});
+
+test("persistent initialization errors stop retrying instead of polling forever", async () => {
+  const h = harness();
+  const root = h.addFrame([], [rect()]);
+  h.failInjections(100);
+  h.start();
+  await h.flush();
+  assert.equal(root.pan(), undefined);
+  assert.ok(h.injectionAttempts <= 4);
+});
+
+test("an unavailable non-video frame does not prevent other videos from panning", async () => {
+  const h = harness();
+  const root = h.addFrame([], [rect(0), rect(400)]);
+  h.addFrame([0]);
+  h.missSnapshots(100);
+  h.start();
+  await h.flush();
+  assert.deepEqual([root.pan(0), root.pan(1)], [-0.8, 0.8]);
+  assert.ok(h.injectionAttempts <= 4);
+});
+
+test("browser startup initializes restored multiview tabs without page changes", async () => {
+  const h = harness();
+  const root = h.addFrame([], [rect(0), rect(400)]);
+  const otherTab = h.addTab(2, "https://example.com/watch");
+  const other = h.addFrame([], [rect()], rect(), otherTab);
+  h.startup();
+  await h.flush();
+  assert.deepEqual([root.pan(0), root.pan(1)], [-0.8, 0.8]);
+  assert.equal(other.contexts.length, 0);
+  assert.equal(other.isWatching(), false);
 });

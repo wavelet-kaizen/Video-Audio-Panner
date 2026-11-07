@@ -210,14 +210,47 @@
     }
   });
 
-  for (const event of ["pointerdown", "keydown", "play"]) {
-    document.addEventListener(event, () => resumeAudio(true), true);
-  }
   globalThis.__videoAudioPanner = { snapshot };
 
   function requestAutomatic() {
-    if (window === window.top && location.origin === "https://holodex.net" && /^\/multiview(?:\/|$)/.test(location.pathname)) notifyChanges();
+    if (window === window.top && location.origin === "https://holodex.net" && /^\/multiview(?:\/|$)/.test(location.pathname)) {
+      // Observe before the background's first asynchronous iframe injection.
+      setAutomatic(true);
+      notifyChanges();
+    }
   }
-  window.addEventListener("pageshow", requestAutomatic);
+
+  function retryAudio() {
+    updateAudio();
+    resumeAudio(true);
+  }
+
+  for (const event of ["pointerdown", "pointerup", "click", "keydown"]) {
+    document.addEventListener(event, () => {
+      retryAudio();
+      requestAutomatic();
+    }, true);
+  }
+  for (const event of ["play", "playing", "loadedmetadata"]) {
+    document.addEventListener(event, (message) => {
+      if (!message.target.matches?.("video")) return;
+      retryAudio();
+      // A restored player's existing video may become ready without insertion.
+      if (automatic) notifyChanges();
+    }, true);
+  }
+
+  function onRestore() {
+    requestAutomatic();
+    if (automatic) {
+      retryAudio();
+      notifyChanges();
+    }
+  }
+  window.addEventListener("pageshow", onRestore);
+  window.addEventListener("focus", onRestore);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") onRestore();
+  });
   requestAutomatic();
 })();
