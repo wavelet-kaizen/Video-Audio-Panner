@@ -19,7 +19,7 @@ The extension follows the standard Chrome Extension Manifest V3 structure:
 1. **Tab-scoped snapshots**: The background script serializes updates per tab, collects all frames before assigning pans, and targets document IDs to avoid stale messages after iframe navigation. No global video counter is shared between tabs.
 2. **Screen coordinates**: Each frame reports its video rectangles, viewport and child iframe rectangles. The background composes parent coordinates/scaling without accessing cross-origin documents directly. Frame paths give stable fallback ordering.
 3. **Audio reuse**: Each document has at most one AudioContext. WeakMap records preserve media sources/panners across updates and temporary removal. Never recreate a source for the same video or store audio objects in `dataset`. Do not reroute video audio while the context is suspended; retry on playback/interaction.
-4. **Automatic layout**: One video is centered; two use -0.8/+0.8 in screen order. For three/four, left/right columns use -/+0.8 at the top and -/+0.65 below; center-positioned videos stay centered. This overrides count order in Holodex. Five or more retain [-1, 1, 0].
+4. **Automatic layout**: One video is centered; two use -0.8/+0.8 in screen order. For a single vertical column of up to three videos (horizontal centers within 2 CSS pixels), assign [-0.8, 0.8, 0] top to bottom. Otherwise, for three/four, left/right columns use -/+0.8 at the top and -/+0.65 below; center-positioned videos stay centered. This overrides count order in Holodex. Five or more retain [-1, 1, 0].
 5. **Manual/fallback patterns**: One [0], two [-0.8, 0.8], three [-0.8, 0, 0.8], four [-0.8, -0.65, 0.8, 0.65], five+ [-1, 1, 0] repeated.
 
 ### Flow

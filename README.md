@@ -92,11 +92,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension
 
 ブラウザーの画面から手動でパックする場合は、以下の手順を使います。リポジトリ全体をパックすると、`env/` 内の秘密キーやブラウザーのテストデータも対象になります。`.gitignore` はパック対象の除外設定にはなりません。
 
-1. `crx/Video Audio Panner-1.1/` に、最新の `manifest.json`・`background.js`・`content.js` だけをコピーする（再パック時もコピーし直す）
+1. `crx/Video Audio Panner-1.2/` に、最新の `manifest.json`・`background.js`・`content.js` だけをコピーする（再パック時もコピーし直す）
 2. `edge://extensions/` の「拡張機能のパック」で、以下を指定する
-   - **拡張ルート ディレクトリ**：`<リポジトリ>/crx/Video Audio Panner-1.1`
+   - **拡張ルート ディレクトリ**：`<リポジトリ>/crx/Video Audio Panner-1.2`
    - **秘密キー ファイル**：`<リポジトリ>/env/Video Audio Panner.pem`
-3. パックすると `crx/Video Audio Panner-1.1.crx` が作成される
+3. パックすると `crx/Video Audio Panner-1.2.crx` が作成される
 
 秘密キーはパックするフォルダーの外側に置き、更新時も同じキーを指定してください。キーを専用フォルダー内にコピーする必要はありません。バージョンを上げた場合は、フォルダー名も対応するバージョンに読み替えてください。
 
@@ -134,6 +134,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\pack-extension
 
 - **1動画**：中央
 - **2動画**：画面の左から右へ、左80%・右80%（縦並びでは上から下の順）
+- **3動画が縦一列**：上から左80%・右80%・中央。動画の追加順には依存しない
 - **3〜4動画**：左列は左、右列は右。同じ列の上側は80%、下側は65%。レイアウト中央にある動画は中央
 - **5動画以上**：従来どおり左100%・右100%・中央を繰り返す
 
@@ -255,4 +256,4 @@ Canaryなど別の実行ファイルを使う場合は、環境変数 `EDGE_PATH
 
 ## バージョン
 
-現在のバージョン: 1.1
+現在のバージョン: 1.2

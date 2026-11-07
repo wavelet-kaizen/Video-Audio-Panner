@@ -175,6 +175,10 @@ async function main() {
     await expected({ "/a": 0.65, "/b": 0.8, "/c": -0.8, "/d": -0.65 }, "viewport resize restores layout");
     await evaluate("document.querySelector('#a').remove()");
     await expected({ "/b": 0.8, "/c": -0.8, "/d": -0.65 }, "frame removal to 3");
+    await evaluate("for (const [id, top, left] of [['d',0,0.5],['b',200,0],['c',400,1]]) { document.getElementById(id).style.cssText = `left:${left}px;top:${top}px;width:400px;height:200px`; }");
+    await expected({ "/d": -0.8, "/b": 0.8, "/c": 0 }, "vertical column uses top-to-bottom left, right, center");
+    await evaluate("for (const [id, left, top] of [['b',400,0],['c',0,0],['d',0,300]]) { document.getElementById(id).style.cssText = `left:${left}px;top:${top}px;width:400px;height:300px`; }");
+    await expected({ "/b": 0.8, "/c": -0.8, "/d": -0.65 }, "return from vertical column restores position panning");
     await evaluate("document.body.insertAdjacentHTML('beforeend','<iframe id=\"a\" src=\"https://video.test/a\" style=\"left:400px;top:300px\" allow=\"autoplay\"></iframe>')");
     await until(async () => Object.keys(await audioValues()).length === 4, "new frame collection");
     await playAll();

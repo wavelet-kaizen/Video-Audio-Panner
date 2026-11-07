@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Video Audio Panner",
-  "version": "1.1",
+  "version": "1.2",
   "description": "動画の音声を左右に振り分ける。Holodexのmultiviewでは動画の増減・表示位置に合わせて自動調整。",
   "permissions": [
     "scripting",

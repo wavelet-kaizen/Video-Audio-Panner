@@ -283,6 +283,40 @@ test("three videos use actual columns and center-spanning videos stay centered",
   assert.deepEqual(root.dom.videos.map((_, i) => root.pan(i)), [-0.8, 0.8, -0.65]);
 });
 
+test("three videos in one vertical column use screen order across iframes", async () => {
+  const h = harness();
+  h.addFrame();
+  const bottom = h.addFrame([0], [rect(0, 0, 400, 200)], rect(200, 400, 400, 200));
+  const top = h.addFrame([1], [rect(0, 0, 400, 200)], rect(200.5, 0, 400, 200));
+  const middle = h.addFrame([2], [rect(0, 0, 400, 200)], rect(201, 200, 400, 200));
+  h.start();
+  await h.flush();
+  assert.deepEqual([top.pan(), middle.pan(), bottom.pan()], [-0.8, 0.8, 0]);
+  assert.deepEqual(h.warnings, []);
+});
+
+test("vertical layouts with two or three videos update when positions change", async () => {
+  for (const count of [2, 3]) {
+    const h = harness();
+    const horizontal = Array.from({ length: count }, (_, i) => rect(i * 200, 0, 200, 200));
+    const root = h.addFrame([], horizontal);
+    h.start();
+    await h.flush();
+    const horizontalPans = count === 2 ? [-0.8, 0.8] : [-0.8, 0, 0.8];
+    assert.deepEqual(root.dom.videos.map((_, i) => root.pan(i)), horizontalPans);
+    root.dom.videos.forEach((video, i) => { video.rect = rect(i * 0.5, (count - 1 - i) * 200, 200, 200); });
+    root.layout();
+    await h.flush();
+    assert.deepEqual(root.dom.videos.map((_, i) => root.pan(i)), count === 2 ? [0.8, -0.8] : [0, 0.8, -0.8]);
+    root.dom.videos.forEach((video, i) => { video.rect = horizontal[i]; });
+    root.layout();
+    await h.flush();
+    assert.deepEqual(root.dom.videos.map((_, i) => root.pan(i)), horizontalPans);
+    assert.deepEqual(root.dom.videos.map((video) => video.sourceCount), Array(count).fill(1));
+    assert.deepEqual(h.warnings, []);
+  }
+});
+
 test("nested and scaled iframe coordinates are composed with parent positions", async () => {
   const h = harness();
   h.addFrame();

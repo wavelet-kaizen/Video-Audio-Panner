@@ -84,6 +84,15 @@ function assignPanning(videos, usePosition) {
   if (!usePosition || videos.length < 2 || videos.length > 4 || videos.some((video) => !video.rect)) return;
 
   const centerX = (video) => video.rect.left + video.rect.width / 2;
+  const centers = videos.map(centerX);
+  // Allow subpixel rounding across iframe coordinates for a single column.
+  if (videos.length <= 3 && Math.max(...centers) - Math.min(...centers) <= 2) {
+    const verticalPattern = [-0.8, 0.8, 0];
+    [...videos].sort((a, b) => a.rect.top - b.rect.top).forEach((video, index) => {
+      video.pan = verticalPattern[index];
+    });
+    return;
+  }
   if (videos.length === 2) {
     const ordered = [...videos].sort((a, b) => centerX(a) - centerX(b) || a.rect.top - b.rect.top);
     ordered[0].pan = -0.8;
